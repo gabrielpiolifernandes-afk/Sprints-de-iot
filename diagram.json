@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "author": "Gabriel Pioli",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 19.2, "left": -167.96, "attrs": {} },
+    { "type": "wokwi-hc-sr04", "id": "ultrasonic1", "top": -84.9, "left": -42.5, "attrs": {} }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:GND.2", "ultrasonic1:GND", "black", [ "v0", "h144" ] ],
+    [ "ultrasonic1:VCC", "esp:3V3", "red", [ "v0", "h-201.6" ] ],
+    [ "ultrasonic1:TRIG", "esp:19", "green", [ "v0" ] ],
+    [ "ultrasonic1:ECHO", "esp:18", "green", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
