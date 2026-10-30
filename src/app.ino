@@ -1,3 +1,4 @@
+
 const int PINO_TRIG = 19;
 const int PINO_ECHO = 18;
 
@@ -6,38 +7,34 @@ const float DISTANCIA_REARME = 30.0;
 
 const int LEITURAS_PARA_ATIVAR = 3;
 
-const unsigned long INTERVALO_LEITURA = 200;
+const unsigned long INTERVALO_LEITURA = 500;
 const unsigned long TIMEOUT_ECHO = 30000;
+const unsigned long TEMPO_SEQUENCIA = 5000;
 
 int leiturasProximas = 0;
-bool assistenteAtivado = false;
+int etapa = 0;
 
 unsigned long ultimaLeitura = 0;
+unsigned long inicioSequencia = 0;
 
 float medirDistancia() {
-  // Garante que o TRIG comece em nível baixo.
   digitalWrite(PINO_TRIG, LOW);
   delayMicroseconds(2);
 
-  // Envia um pulso de 10 microssegundos.
   digitalWrite(PINO_TRIG, HIGH);
   delayMicroseconds(10);
   digitalWrite(PINO_TRIG, LOW);
 
-  // Mede a duração do sinal recebido no ECHO.
   unsigned long duracao = pulseIn(
     PINO_ECHO,
     HIGH,
     TIMEOUT_ECHO
   );
 
-  // Sem retorno válido do sensor.
   if (duracao == 0) {
     return -1.0;
   }
 
-  // Distância = tempo x velocidade do som / 2.
-  // Dividimos por 2 porque o som vai e volta.
   float distancia = duracao * 0.0343 / 2.0;
 
   return distancia;
@@ -53,11 +50,13 @@ void setup() {
 
   Serial.println();
   Serial.println("==================================");
-  Serial.println(" MOTIVA - ATIVACAO POR PROXIMIDADE");
+  Serial.println(" MOTIVA - ATIVACAO POR GESTOS");
   Serial.println("==================================");
-  Serial.println("Distancia de ativacao: 20 cm");
-  Serial.println("Confirmacao: 3 leituras consecutivas");
-  Serial.println("Aguardando aproximacao...");
+  Serial.println("1 - Aproximacao");
+  Serial.println("2 - Distanciamento");
+  Serial.println("3 - Nova aproximacao");
+  Serial.println("Tempo limite: 5 segundos");
+  Serial.println("Aguardando gesto...");
 }
 
 void loop() {
@@ -78,47 +77,110 @@ void loop() {
     return;
   }
 
+  // Verifica se o tempo da sequencia expirou.
+  if (
+    (etapa == 1 || etapa == 2) &&
+    agora - inicioSequencia > TEMPO_SEQUENCIA
+  ) {
+    Serial.println();
+    Serial.println("Tempo esgotado!");
+    Serial.println("Sequencia reiniciada.");
+    Serial.println();
+
+    etapa = 0;
+    leiturasProximas = 0;
+  }
+
   Serial.print("Distancia: ");
   Serial.print(distancia, 1);
   Serial.print(" cm | ");
 
-  // Detecta aproximação dentro do limite configurado.
-  if (distancia <= DISTANCIA_ATIVACAO) {
-    if (leiturasProximas < LEITURAS_PARA_ATIVAR) {
+  // ETAPA 0: Primeira aproximacao.
+  if (etapa == 0) {
+
+    if (distancia <= DISTANCIA_ATIVACAO) {
       leiturasProximas++;
-    }
 
-    Serial.print("Leituras proximas: ");
-    Serial.print(leiturasProximas);
-    Serial.print("/");
-    Serial.println(LEITURAS_PARA_ATIVAR);
+      Serial.print("Primeira aproximacao: ");
+      Serial.print(leiturasProximas);
+      Serial.print("/");
+      Serial.println(LEITURAS_PARA_ATIVAR);
 
-    // Ativa somente após três leituras consecutivas.
-    if (
-      leiturasProximas >= LEITURAS_PARA_ATIVAR &&
-      !assistenteAtivado
-    ) {
-      assistenteAtivado = true;
+      if (leiturasProximas >= LEITURAS_PARA_ATIVAR) {
+        etapa = 1;
+        inicioSequencia = agora;
+        leiturasProximas = 0;
 
-      Serial.println();
-      Serial.println("**********************************");
-      Serial.println("       ASSISTENTE ATIVADO!");
-      Serial.println(" Aproximacao confirmada pela Motiva");
-      Serial.println("**********************************");
-      Serial.println();
-    }
-  } else {
-    leiturasProximas = 0;
-    Serial.println("Aguardando aproximacao...");
-
-    // Rearma apenas quando a distância superar 30 cm.
-    if (distancia >= DISTANCIA_REARME) {
-      if (assistenteAtivado) {
-        Serial.println("Usuario se afastou.");
-        Serial.println("Sistema pronto para nova ativacao.");
+        Serial.println();
+        Serial.println("Primeira aproximacao confirmada!");
+        Serial.println("Agora afaste-se do sensor.");
+        Serial.println();
       }
 
-      assistenteAtivado = false;
+    } else {
+      leiturasProximas = 0;
+      Serial.println("Aguardando primeira aproximacao...");
+    }
+  }
+
+  // ETAPA 1: Aguardar o distanciamento.
+  else if (etapa == 1) {
+
+    Serial.println("Aguardando distanciamento...");
+
+    if (distancia >= DISTANCIA_REARME) {
+      etapa = 2;
+      leiturasProximas = 0;
+
+      Serial.println();
+      Serial.println("Distanciamento confirmado!");
+      Serial.println("Aproxime-se novamente!");
+      Serial.println();
+    }
+  }
+
+  // ETAPA 2: Aguardar a segunda aproximacao.
+  else if (etapa == 2) {
+
+    if (distancia <= DISTANCIA_ATIVACAO) {
+      leiturasProximas++;
+
+      Serial.print("Segunda aproximacao: ");
+      Serial.print(leiturasProximas);
+      Serial.print("/");
+      Serial.println(LEITURAS_PARA_ATIVAR);
+
+      if (leiturasProximas >= LEITURAS_PARA_ATIVAR) {
+
+        Serial.println();
+        Serial.println("**********************************");
+        Serial.println("       ASSISTENTE ATIVADO!");
+        Serial.println(" GESTO RECONHECIDO PELA MOTIVA");
+        Serial.println("**********************************");
+        Serial.println();
+
+        etapa = 3;
+        leiturasProximas = 0;
+      }
+
+    } else {
+      leiturasProximas = 0;
+      Serial.println("Aguardando segunda aproximacao...");
+    }
+  }
+
+  // ETAPA 3: Impede ativacoes repetidas.
+  else if (etapa == 3) {
+
+    Serial.println("Assistente ativo. Aguardando afastamento.");
+
+    if (distancia >= DISTANCIA_REARME) {
+      etapa = 0;
+
+      Serial.println();
+      Serial.println("Sistema rearmado!");
+      Serial.println("Pronto para novo gesto.");
+      Serial.println();
     }
   }
 }
